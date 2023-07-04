@@ -1,152 +1,195 @@
-import React, { useRef } from 'react';
-import { useIntl } from 'umi';
-import { PageContainer } from '@ant-design/pro-layout';
-import type { ProColumns, ActionType } from '@ant-design/pro-table';
-import ProTable from '@ant-design/pro-table';
-import ProForm from '@ant-design/pro-form';
-import { Button, Divider, Form, Input, Select, Space } from "antd";
-import { useHistory } from "react-router-dom";
-import ProCard from '@ant-design/pro-card';
-import { plusOutlined, searchOutlined } from '@/rules/outlined';
-import { Option } from 'rc-select';
-import { getOwners } from '@/services/gbo/owners';
-import { SortOrder } from 'antd/lib/table/interface';
-import OwnerStyles from './styles/owners.less';
+import {
+  AlipayCircleOutlined,
+  LockOutlined,
+  TaobaoCircleOutlined,
+  UserOutlined,
+  WeiboCircleOutlined,
+} from '@ant-design/icons';
+import { Alert, Space, message, Tabs } from 'antd';
+import React, { useState } from 'react';
+import ProForm, {  ProFormCheckbox, ProFormText } from '@ant-design/pro-form';
+import { useIntl, Link, history, FormattedMessage, SelectLang, useModel } from 'umi';
+import Footer from '@/components/Footer';
+import { login } from '@/services/gbo/auth';
 
-const TableList: React.FC = () => {
-    const actionRef = useRef<ActionType>();
-    const history = useHistory();
+import styles from './index.less';
 
-    /**
-     * @en-US International configuration
-     * @zh-CN 国际化配置
-     * */
+const LoginMessage: React.FC<{
+  content: string;
+}> = ({ content }) => (
+  <Alert
+    style={{
+      marginBottom: 24,
+    }}
+    message={content}
+    type="error"
+    showIcon
+  />
+);
 
-    const columns: ProColumns<API.OwnerRecord>[] = [
-        {
-            title: 'Username',
-            dataIndex: 'username',
-            sorter: true,
-        },
-        {
-            title: 'Full Name',
-            dataIndex: 'fullname',
-            sorter: true,
-        },
-        {
-            title: 'Status',
-            dataIndex: 'status',
-            sorter: true,
-        },
-        {
-            title: 'Last Login Time/Last Login IP',
-            dataIndex: 'lastLogin',
-            sorter: true,
-            valueType: 'dateTime',
-        },
-        {
-            title: 'Actions',
-            key: 'option',
-            valueType: 'option',
-            render: () => [
-                <Space split={<Divider type="vertical" />}>
-                    <a key="link" onClick={() => {
-                        history.push('/owners/detail');
-                    }}>View</a>
-                    <a key="link2" onClick={() => {
-                        history.push('/owners/detail');
-                    }}>Edit</a>
-                </Space>
-            ],
-        },
-    ];
+const Login: React.FC = () => {
+  const [submitting, setSubmitting] = useState(false);
+  const [userLoginState, setUserLoginState] = useState<{status: "ready"|"loading"|"error"|"success", user?: API.CurrentUser}>({status: "ready"});
+  const [type, setType] = useState<string>('account');
+  const { initialState, setInitialState } = useModel('@@initialState');
 
-    // const search = () => {
-    //     console.log('Clicked search');
-    // }
+  const intl = useIntl();
 
-    const onFinish = (values: any) => {
-        //console.log('Success:', values);
+  const fetchUserInfo = async () => {
+    const userInfo = await initialState?.fetchUserInfo?.();
+    if (userInfo) {
+      await setInitialState((s) => ({
+        ...s,
+        currentUser: userInfo,
+      }));
     }
+  };
 
-    // type GithubIssueItem = {
-    //     url: string;
-    //     id: number;
-    //     number: number;
-    //     title: string;
-    //     labels: {
-    //         name: string;
-    //         color: string;
-    //     }[];
-    //     state: string;
-    //     comments: number;
-    //     created_at: string;
-    //     updated_at: string;
-    //     closed_at?: string;
-    // };
+  const handleSubmit = async (values: API.LoginParams) => {
+    setSubmitting(true);
+    try {
+      // 登录
+      const msg = await login({ ...values });
+      if (msg.token) {
+        const defaultLoginSuccessMessage = intl.formatMessage({
+          id: 'pages.login.success',
+          defaultMessage: 'Login Success',
+        });
+        message.success(defaultLoginSuccessMessage);
+        await fetchUserInfo();
+        /** 此方法会跳转到 redirect 参数所在的位置 */
+        if (!history) return;
+        const { query } = history.location;
+        const { redirect } = query as { redirect: string };
+        history.push(redirect || '/');
+        return;
+      }
+      // 如果失败去设置用户错误信息
+      setUserLoginState({status: "error"});
+    } catch (error) {
+      const defaultLoginFailureMessage = intl.formatMessage({
+        id: 'pages.login.failure',
+        defaultMessage: '登录失败，请重试！',
+      });
 
-    const requestOwners = async ({ params, sort, filter }: { params: API.RequestParams, sort: Record<string, SortOrder>, filter: Record<string, React.ReactText[] | null> }) => {
-        const requestParams = {
-            page: params && params.current ? params.current : 1,
-            limit: params && params.pageSize ? params.pageSize : 20,
-        }
-        const result = await getOwners(requestParams);
-        return result;
+      //message.error(defaultLoginFailureMessage);
     }
-    return (
-        <PageContainer>
-            <ProCard className={OwnerStyles.marginBottom}>
-                <ProForm.Group>
-                    <Button
-                        type="primary"
-                        size="middle"
-                        onClick={() => history.push(`/owners/add`)}
-                        icon={plusOutlined}
-                    >
-                        Add Platform Owners
-                    </Button>
-                </ProForm.Group>
-            </ProCard>
-            <ProCard>
-                <Form name="owners" layout="inline" onFinish={onFinish}>
-                    <Form.Item name="userQuery" label="Username：">
-                        <Input placeholder="Please enter a name" suffix={searchOutlined} style={{ minWidth: "140px" }} />
-                    </Form.Item>
-                    <Form.Item name="status" label="Status">
-                        <Select placeholder="ALL">
-                            <Option value="ALL">ALL</Option>
-                            <Option value="active">Active</Option>
-                            <Option value="active">Inactive</Option>
-                        </Select>
-                    </Form.Item>
-                    <Button type="primary" size="middle" htmlType="submit">
-                        Search
-                    </Button>
-                    <Button size="middle" style={{ margin: '0 8px' }}>
-                        Clear
-                    </Button>
-                </Form>
-            </ProCard>
-            <ProCard>
-                <ProTable<API.OwnerRecord>
-                    actionRef={actionRef}
-                    rowKey="id"
-                    request={async (params = {}, sort, filter) => {
-                        console.log(params, sort, filter);
-                        return requestOwners({ params, sort, filter });
+    setSubmitting(false);
+  };
+  const {user, status} = userLoginState
 
-                        // return Promise.resolve({
-                        //     data: tableListDataSource,
-                        //     success: true,
-                        //   });                        
-                    }}
-                    columns={columns}
-                    toolBarRender={false}
-                    search={false}
+  return (
+    <div className={styles.container}>
+      <div className={styles.lang} data-lang>
+        {SelectLang && <SelectLang />}
+      </div>
+      <div className={styles.content}>
+        <div className={styles.top}>
+          <div className={styles.header}>
+            <Link to="/">
+              <span className={styles.title}>BACK OFFICE LOGIN</span>
+            </Link>
+          </div>
+        </div>
+
+        <div className={styles.main}>
+          <ProForm
+            initialValues={{
+            }}
+            submitter={{
+              searchConfig: {
+                submitText: intl.formatMessage({
+                  id: 'pages.login.submit',
+                  defaultMessage: '登录',
+                }),
+              },
+              render: (_, dom) => dom.pop(),
+              submitButtonProps: {
+                loading: submitting,
+                size: 'large',
+                style: {
+                  width: '100%',
+                },
+              },
+            }}
+            onFinish={async (values) => {
+              await handleSubmit(values as API.LoginParams);
+            }}
+          >
+            <Tabs activeKey={type} onChange={setType}>
+              <Tabs.TabPane
+                key="account"
+                tab={intl.formatMessage({
+                  id: 'pages.login.accountLogin.tab',
+                  defaultMessage: '账户密码登录',
+                })}
+              />
+              <Tabs.TabPane
+                key="mobile"
+                tab={intl.formatMessage({
+                  id: 'pages.login.phoneLogin.tab',
+                  defaultMessage: '手机号登录',
+                })}
+              />
+            </Tabs>
+
+            {status === 'error' ?(
+              <LoginMessage
+                content={intl.formatMessage({
+                  id: 'pages.login.accountLogin.errorMessage',
+                  defaultMessage: '账户或密码错误(admin/ant.design)',
+                })}
+              />
+            ):null}
+            {type === 'account' && (
+              <>
+                <ProFormText
+                  name="username"
+                  fieldProps={{
+                    size: 'large',
+                    prefix: <UserOutlined className={styles.prefixIcon} />,
+                  }}
+                  placeholder={"Username"}
+                  rules={[
+                    {
+                      required: true,
+                      message: (
+                        <FormattedMessage
+                          id="pages.login.username.required"
+                          defaultMessage="请输入用户名!"
+                        />
+                      ),
+                    },
+                  ]}
                 />
-            </ProCard>
-        </PageContainer>
-    );
+                <ProFormText.Password
+                  name="password"
+                  fieldProps={{
+                    size: 'large',
+                    prefix: <LockOutlined className={styles.prefixIcon} />,
+                  }}
+                  placeholder={"Password..."}
+                  rules={[
+                    {
+                      required: true,
+                      message: (
+                        <FormattedMessage
+                          id="pages.login.password.required"
+                          defaultMessage="请输入密码！"
+                        />
+                      ),
+                    },
+                  ]}
+                />
+              </>
+            )}
+
+          </ProForm>
+        </div>
+      </div>
+      <Footer />
+    </div>
+  );
 };
 
-export default TableList;
+export default Login;

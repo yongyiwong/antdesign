@@ -113,11 +113,6 @@ const TableList: React.FC = () => {
                     request={async (params = {}, sort, filter) => {
                         console.log(params, sort, filter);
                         return requestOwners({ params, sort, filter });
-
-                        // return Promise.resolve({
-                        //     data: tableListDataSource,
-                        //     success: true,
-                        //   });                        
                     }}
                     columns={columns}
                     toolBarRender={false}
